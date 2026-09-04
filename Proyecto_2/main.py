@@ -1,0 +1,61 @@
+from contextlib import asynccontextmanager
+from typing import Literal
+
+import joblib
+import pandas as pd
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+from Proyecto_2.inferencia import pronosticar
+from Proyecto_2.esquema import SolicitudPonostico
+
+
+NOMBRE_BUNDLE = "Proyecto_2/modelo_demanda.joblib"
+estado_servicio = {"bundle" : None}
+
+@asynccontextmanager
+async def lifespan(app:FastAPI):
+    estado_servicio["bundle"] = joblib.load(NOMBRE_BUNDLE)
+    print("Bundle cargado correctamente")
+    yield 
+    estado_servicio["bundle"] = None 
+
+app = FastAPI(
+    title = "API de Servicio de Prónostico de Demanda",
+    description = "Pronósticode demanda por forecast",
+    version = "1.0.0",
+    lifespan = lifespan
+)
+
+
+@app.get("/")
+def estado():
+    return {
+        "servicio": "API - Servicio de predicción de demanda",
+        "modelo_cargado": estado_servicio["bundle"] is not None
+    }
+
+@app.post("/predecir")
+def predecir(datos: SolicitudPonostico):
+    store = datos.store
+    item = datos.item
+    horizonte = datos.horizonte
+    registros = datos.historial
+
+    historial = pd.DataFrame(
+        {
+            "date":pd.to_datetime([r.fecha for r in registros]),
+            "store": store,
+            "item": item,
+            "sales":[r.unidades for r in registros]
+        }
+    )
+
+    bundle = estado_servicio["bundle"]
+    pronostico = pronosticar(bundle, historial,horizonte)
+
+    return {
+        "store":store,
+        "item": item,
+        "pronostico":pronostico
+    }
