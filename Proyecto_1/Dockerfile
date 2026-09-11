@@ -2,7 +2,7 @@
 
 #La imagen base
 
-FROM python:3.13.0-slim
+FROM python:3.13-slim
 
 #La carpeta donde va a vivir todo dentro del contenedor
 WORKDIR /SERVICIO
